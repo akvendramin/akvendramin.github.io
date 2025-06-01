@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>akvendramin</title>
+    </head>
+    <body style="background-color: #202020;">
+        <textarea id="id-textarea-source" disabled="true" style="width:50vw; height:80vh; background-color: #202020; color: #FFFFFF;"></textarea>
+        <button id="id-button-upload">Upload</button>
+        <input type="file" id="id-input-file" style="display: none">
+        <script src="https://cdn.jsdelivr.net/npm/wabt@1.0.27/index.js"></script>
+        <script>
+            async function main()
+            {
+                let upload_button = 0;
+                let file_input = 0;
+
+                upload_button = document.getElementById("id-button-upload");
+                file_input = document.getElementById("id-input-file");
+                upload_button.onclick = () => { file_input.click() };
+
+                file_input.onchange = async (event) =>
+                {
+                    let file = 0;
+                    let memory = 0;
+                    let source = 0;
+                    let wabt_module = 0;
+                    let wabt = 0;
+                    let binary = 0;
+                    let imports = {};
+                    let wasm_module = 0;
+                    let exports = 0;
+                    let result = 0;
+                    let blob = 0;
+                    let a = 0;
+                    let encoder = 0;
+                    let bytes = 0;
+
+                    file = event.target.files[0];
+                    if(!file)
+                    {
+                        return;
+                    }
+
+                    memory = await file.text();
+
+                    source = await fetch("main.wat");
+                    source = await source.text();
+                    
+                    wabt = await WabtModule();
+                    binary = wabt.parseWat("inline.wat", source);
+                    binary = binary.toBinary({ log: false });
+                    imports = { env: { log: (string) => { console.log(string); } }}
+                    wasm_module = await WebAssembly.instantiate(binary.buffer, imports);
+                    exports = wasm_module.instance.exports;
+                    
+                    source = await fetch("main.txt");
+                    source = await source.text();
+                    source = memory;
+                    memory = new Uint8Array(exports.uint_memory.buffer, exports.uint_js_memory, exports.uint_js_memory_size);
+                    encoder = new TextEncoder();
+                    bytes = encoder.encode(source);
+                    memory.set(bytes, 0);
+                    memory[exports.uint_js_memory + bytes.length] = 0;
+
+                    result = exports.main(source.length, exports.uint_js_memory);
+
+                    if(result != 0)
+                    {
+                        console.log("main() function failed.")
+                        return;
+                    }
+                    else
+                    {
+                        let buffer = 0;
+                        let view = 0;
+                        let size = 0;
+                        let textarea_source = 0;
+                        let decoder = 0;
+
+                        view = new DataView(exports.uint_memory.buffer);
+                        size = view.getUint32(exports.uint_destination, true);
+                        buffer = new Uint8Array(exports.uint_memory.buffer, exports.uint_destination + exports.uint_size, size);
+                        
+                        textarea_source = document.getElementById("id-textarea-source");
+                        decoder = new TextDecoder("utf-8");
+                        textarea_source.value = decoder.decode(buffer);
+                        return;
+                    }
+
+                    blob = new Blob(["Contents of the file here!"], { type: "text/plain" });
+                    a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "assembly.wat";
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                };
+            }
+
+            main();
+        </script>
+    </body>
+</html>
